@@ -14,11 +14,14 @@ cmake_minimum_required(VERSION 2.8)
 use_cxx11()
 
 project(secret-passage)
+
 find_package(
   Boost
   COMPONENTS
     system
     program_options
+    thread
+    log
 )
 
 file(GLOB SRC
