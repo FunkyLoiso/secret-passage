@@ -16,6 +16,7 @@ public:
   settings();
   void read(int argc, char* argv[]); // throws exception, help_requested
   void clear();
+  std::string to_string() const;
 
   std::string log_path; // syslog if empty
   boost::log::trivial::severity_level log_level; // trace, debug, info, warning, error, fatal

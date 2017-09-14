@@ -21,12 +21,18 @@ find_package(
     system
     program_options
     thread
+    filesystem
+    log_setup
     log
 )
 
 file(GLOB SRC
     "*.hpp"
     "*.cpp"
+)
+
+add_definitions(
+  -DBOOST_LOG_USE_NATIVE_SYSLOG
 )
 
 add_executable(

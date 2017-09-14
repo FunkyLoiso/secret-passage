@@ -1,5 +1,6 @@
 #include <iostream>
 #include "settings.hpp"
+#include "secret_passage_service.hpp"
 
 int main(int argc, char *argv[]) {
   sp::settings st;
@@ -15,6 +16,9 @@ int main(int argc, char *argv[]) {
     sp::settings::show_help();
     return -1;
   }
+
+  sp::secret_passage_service svc(st);
+  svc.run();
 
   return 0;
 }
