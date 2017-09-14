@@ -18,7 +18,5 @@ int main(int argc, char *argv[]) {
   }
 
   sp::secret_passage_service svc(st);
-  svc.run();
-
-  return 0;
+  return svc.run();
 }

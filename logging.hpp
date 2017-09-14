@@ -6,6 +6,7 @@
 #include <boost/log/trivial.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/sources/global_logger_storage.hpp>
+#include <boost/log/attributes/named_scope.hpp>
 
 namespace sp
 {

@@ -14,7 +14,7 @@ namespace sp
 {
 
 namespace str {
-  static const char log_format[] = "%TimeStamp% [%Severity%][%ThreadID%]: %Message%";
+  static const char log_format[] = "%TimeStamp% [%Severity%]: %Message%";
 }
 
 typedef sinks::synchronous_sink< sinks::syslog_backend > sink_t;
