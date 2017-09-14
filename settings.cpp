@@ -78,5 +78,16 @@ void settings::clear() {
   pid_path.clear();
 }
 
+std::string settings::to_string() const {
+  std::stringstream sstr;
+#define __W(arg) sstr << '\t' << #arg << ": " << arg << '\n'
+  __W(log_path);
+  sstr << "\tlog_level: " << boost::log::trivial::to_string(log_level) << '\n';
+  __W(pid_path);
+#undef __W
+  return sstr.str();
+}
+
+
 }
 
