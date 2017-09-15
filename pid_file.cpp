@@ -1,6 +1,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <boost/format.hpp>
 
 #include "logging.hpp"
 #include "pid_file.hpp"
@@ -10,10 +11,9 @@ namespace sp
 
 bool pid_file::open(std::__cxx11::string pid_path)
 {
-  BOOST_LOG_FUNCTION();
   fd_ = ::open(pid_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
   if (fd_ == -1) {
-      LOG_FATAL << "Failed to create pid file '" << pid_path << "': " << strerror(errno);
+      LOG_FATAL << bf("Failed to create pid file '%s': %s") % pid_path % strerror(errno);
       fd_ = 0;
       return false;
   }
@@ -28,22 +28,22 @@ bool pid_file::open(std::__cxx11::string pid_path)
   auto res = fcntl(fd_, F_SETLK, &fl);
   if (-1 == res) {
       if (errno  == EAGAIN || errno == EACCES) {
-          LOG_FATAL << "pid file '" << pid_path <<"' already locked. Serice already running?";
+          LOG_FATAL << bf("pid file '%s' already locked. Serice already running?") % pid_path;
       }
       else {
-          LOG_FATAL << "unable to lock pid file '" << pid_path << "': " << strerror(errno);
+          LOG_FATAL << bf("unable to lock pid file '%s': %s") % pid_path % strerror(errno);
       }
       return false;
   }
 
   if (-1 == ftruncate(fd_, 0)) {
-      LOG_FATAL << "failed to truncate pid file '" << pid_path << "': " << strerror(errno);
+      LOG_FATAL << bf("failed to truncate pid file '%s': %s") % pid_path % strerror(errno);
       return false;
   }
 
   auto pid_str = std::to_string(getpid());
   if(write(fd_, pid_str.data(), pid_str.size()) != pid_str.size()) {
-      LOG_FATAL << "failed to write pid file '" << pid_path << "': " << strerror(errno);
+      LOG_FATAL << bf("failed to write pid file '%s': %s") % pid_path % strerror(errno);
       return false;
   }
 
@@ -62,7 +62,7 @@ void pid_file::close() {
   }
   fd_ = 0;
   if(-1 == unlink(pid_path_.c_str())) {
-    LOG_ERROR << "unlink failed for '" << pid_path_ << "': " << strerror(errno);
+    LOG_ERROR << bf("unlink failed for '%s': %s") % pid_path_ % strerror(errno);
   }
 }
 

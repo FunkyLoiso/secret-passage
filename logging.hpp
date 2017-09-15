@@ -7,11 +7,14 @@
 #include <boost/log/sources/severity_logger.hpp>
 #include <boost/log/sources/global_logger_storage.hpp>
 #include <boost/log/attributes/named_scope.hpp>
+#include <boost/format.hpp>
 
 namespace sp
 {
 
 void setup_logging(const std::string& log_path, boost::log::trivial::severity_level log_level);
+
+typedef boost::format bf;
 
 }
 

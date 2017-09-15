@@ -8,9 +8,7 @@ namespace sp
 
 secret_passage_service::secret_passage_service(settings st)
   : st_(st)
-{
-
-}
+{}
 
 int secret_passage_service::run() {
   try {
