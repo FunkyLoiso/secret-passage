@@ -22,6 +22,7 @@ namespace severity {
 
 namespace def {
   static const auto log_level = str::severity::warning;
+  static const std::string listen("127.0.0.1:443");
 }
 
 void describe(po::options_description& desc, settings* st = nullptr) {
@@ -36,11 +37,15 @@ void describe(po::options_description& desc, settings* st = nullptr) {
   };
 
   desc.add_options()
+    // [general options]
     ("help,h", "print this message and exit")
     ("pid-path,P", po::value<std::string>(st ? &st->pid_path : nullptr), "full path to pid file")
     ("config-path,C", po::value<std::string>(), "full path to config file")
     ("log-path,L", po::value<std::string>(st ? &st->log_path : nullptr), "full path to log file. syslog if absent")
-    ("log-level,l", po::value<std::string>()->notifier(severity_handler)->default_value(def::log_level), "log level: trace, debug, info, warning, error or fatal")
+    ("log-level", po::value<std::string>()->notifier(severity_handler)->default_value(def::log_level), "log level: trace, debug, info, warning, error or fatal")
+    // [tunnel options]
+    ("listen,l", po::value<std::string>(st ? &st->address_ : nullptr)->default_value(def::listen), "listen address\nstarts in listen mode")
+    ("connect,c", po::value<std::string>(st ? &st->address_ : nullptr), "connect address\nstarts in connect mode")
     ;
 }
 
@@ -79,9 +84,13 @@ void settings::read(int argc, char *argv[]) {
     throw help_requested();
   }
 
-  if(!map.count("pid-path")) {
-    throw exception("Option 'pid-path' is mandatory");
+  bool has_connect = 0 != map.count("connect");
+  if(!map["listen"].defaulted() && has_connect) {
+    throw exception("options 'listen' and 'connect' are mutually exclusive");
   }
+  mode_ = has_connect ? mode::connect : mode::listen;
+
+  validate();
 }
 
 void settings::clear() {
@@ -94,8 +103,28 @@ std::string settings::to_string() const {
   __W(pid_path);
   __W(log_path);
   sstr << "\tlog_level: " << boost::log::trivial::to_string(log_level) << '\n';
+  if(mode_ == mode::listen) {
+    sstr << "\tlisten: " << address_ << '\n';
+  }
+  else {
+    sstr << "\tconnect: " << address_ << '\n';
+  }
 #undef __W
   return sstr.str();
+}
+
+void settings::validate() {
+  if(pid_path.empty()) {
+    throw exception("Option 'pid-path' is mandatory");
+  }
+}
+
+std::string settings::mode::name(settings::mode::code_t c) {
+  switch(c) {
+  case listen: return "listen";
+  case connect: return "connect";
+  default: return "unknown";
+  }
 }
 
 

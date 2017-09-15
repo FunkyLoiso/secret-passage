@@ -20,8 +20,9 @@ int secret_passage_service::run() {
     std::cout.flush();
     return -1;
   }
-
-  LOG_INFO << "starting with options:\n" << st_.to_string();
+  std::cout << "starting Secret Passage daemon in '" << settings::mode::name(st_.mode_) << "' mode" << std::endl;
+  LOG_INFO << bf("starting in '%s' mode with options:\n%s")
+    % settings::mode::name(st_.mode_) % st_.to_string();
 
   if(-1 == daemon(0, 0)) {
     LOG_FATAL << "service failed to daemonize";
@@ -33,7 +34,9 @@ int secret_passage_service::run() {
     return -3;
   }
 
-  LOG_INFO << "serice stopped";
+
+
+  LOG_INFO << "Secret Passage serice stopped";
   return 0;
 }
 
