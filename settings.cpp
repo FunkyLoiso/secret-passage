@@ -37,9 +37,11 @@ void describe(po::options_description& desc, settings* st = nullptr) {
 
   desc.add_options()
     ("help,h", "print this message and exit")
+    ("pid-path,P", po::value<std::string>(st ? &st->pid_path : nullptr), "full path to pid file")
+    ("config-path,C", po::value<std::string>(), "full path to config file")
     ("log-path,L", po::value<std::string>(st ? &st->log_path : nullptr), "full path to log file. syslog if absent")
     ("log-level,l", po::value<std::string>()->notifier(severity_handler)->default_value(def::log_level), "log level: trace, debug, info, warning, error or fatal")
-    ("pid-path,p", po::value<std::string>(st ? &st->pid_path : nullptr), "full path to pid file");
+    ;
 }
 
 void settings::show_help() {
@@ -57,16 +59,24 @@ void settings::read(int argc, char *argv[]) {
   describe(opts, this);
 
   po::variables_map map;
+  auto parsed = po::parse_command_line(argc, argv, opts);
+  po::store(parsed, map);
+
+  auto cfg_i = map.find("config-path");
+  if(cfg_i != map.end()) {
+      auto cfg_parsed = po::parse_config_file<char>(cfg_i->second.as<std::string>().c_str(), opts);
+      po::store(cfg_parsed, map);
+  }
+
   try {
-    auto parsed = po::parse_command_line(argc, argv, opts);
-    po::store(parsed, map);
     po::notify(map);
-    if(map.count("help")) {
-      throw help_requested();
-    }
   }
   catch(const po::error& er) {
     throw exception("Failed to parse command line", er.what());
+  }
+
+  if(map.count("help")) {
+    throw help_requested();
   }
 
   if(!map.count("pid-path")) {
@@ -81,9 +91,9 @@ void settings::clear() {
 std::string settings::to_string() const {
   std::stringstream sstr;
 #define __W(arg) sstr << '\t' << #arg << ": " << arg << '\n'
+  __W(pid_path);
   __W(log_path);
   sstr << "\tlog_level: " << boost::log::trivial::to_string(log_level) << '\n';
-  __W(pid_path);
 #undef __W
   return sstr.str();
 }
