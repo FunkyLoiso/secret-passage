@@ -4,6 +4,7 @@
 #include <boost/asio/io_service.hpp>
 #include "settings.hpp"
 #include "pid_file.hpp"
+#include "scoped_descriptor.hpp"
 
 namespace sp
 {
@@ -18,6 +19,8 @@ private:
   pid_file pid_;
   boost::asio::io_service ios_;
   settings st_;
+
+  shared_descriptor tap_;
 };
 
 }

@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include "secret_passage_service.hpp"
 #include "logging.hpp"
+#include "create_tap.hpp"
 
 namespace sp
 {
@@ -28,13 +29,18 @@ int secret_passage_service::run() {
     LOG_FATAL << "service failed to daemonize";
     return -2;
   }
-
   LOG_DEBUG << "successfully daemonized, pid is " << getpid();
+
   if(!pid_.open(st_.pid_path.c_str())) {
     return -3;
   }
 
-
+  std::string tap_name;
+  tap_ = create_tap(&tap_name);
+  if(!tap_->valid()) {
+    return -4;
+  }
+  LOG_INFO << bf("tap interface created: '%s'") % tap_name;
 
   LOG_INFO << "Secret Passage serice stopped";
   return 0;
