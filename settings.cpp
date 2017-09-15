@@ -114,9 +114,6 @@ std::string settings::to_string() const {
 }
 
 void settings::validate() {
-  if(pid_path.empty()) {
-    throw exception("Option 'pid-path' is mandatory");
-  }
 }
 
 std::string settings::mode::name(settings::mode::code_t c) {

@@ -31,7 +31,7 @@ int secret_passage_service::run() {
   }
   LOG_DEBUG << "successfully daemonized, pid is " << getpid();
 
-  if(!pid_.open(st_.pid_path.c_str())) {
+  if(!st_.pid_path.empty() && !pid_.open(st_.pid_path.c_str())) {
     return -3;
   }
 
