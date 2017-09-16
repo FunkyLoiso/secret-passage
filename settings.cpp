@@ -23,6 +23,7 @@ namespace severity {
 namespace def {
   static const auto log_level = str::severity::warning;
   static const std::string listen("127.0.0.1:443");
+  static const bool daemonize(false);
 }
 
 void describe(po::options_description& desc, settings* st = nullptr) {
@@ -41,11 +42,12 @@ void describe(po::options_description& desc, settings* st = nullptr) {
     ("help,h", "print this message and exit")
     ("pid-path,P", po::value<std::string>(st ? &st->pid_path : nullptr), "full path to pid file")
     ("config-path,C", po::value<std::string>(), "full path to config file")
-    ("log-path,L", po::value<std::string>(st ? &st->log_path : nullptr), "full path to log file. syslog if absent")
+    ("log-path,L", po::value<std::string>(st ? &st->log_path : nullptr), "full path to log file. 'syslog' to use syslog, empty for stdout (for non-deamon only)")
     ("log-level", po::value<std::string>()->notifier(severity_handler)->default_value(def::log_level), "log level: trace, debug, info, warning, error or fatal")
+    ("daemonize,d", po::bool_switch(st ? &st->daemonize : nullptr)->default_value(def::daemonize), "start as service")
     // [tunnel options]
-    ("listen,l", po::value<std::string>(st ? &st->address_ : nullptr)->default_value(def::listen), "listen address\nstarts in listen mode")
-    ("connect,c", po::value<std::string>(st ? &st->address_ : nullptr), "connect address\nstarts in connect mode")
+    ("listen,l", po::value<std::string>(st ? &st->address : nullptr)->default_value(def::listen), "listen address\nstarts in listen mode")
+    ("connect,c", po::value<std::string>(st ? &st->address : nullptr), "connect address\nstarts in connect mode")
     ;
 }
 
@@ -88,7 +90,7 @@ void settings::read(int argc, char *argv[]) {
   if(!map["listen"].defaulted() && has_connect) {
     throw exception("options 'listen' and 'connect' are mutually exclusive");
   }
-  mode_ = has_connect ? mode::connect : mode::listen;
+  mode = has_connect ? mode::connect : mode::listen;
 
   validate();
 }
@@ -102,12 +104,13 @@ std::string settings::to_string() const {
 #define __W(arg) sstr << '\t' << #arg << ": " << arg << '\n'
   __W(pid_path);
   __W(log_path);
+  __W(daemonize);
   sstr << "\tlog_level: " << boost::log::trivial::to_string(log_level) << '\n';
-  if(mode_ == mode::listen) {
-    sstr << "\tlisten: " << address_ << '\n';
+  if(mode == mode::listen) {
+    sstr << "\tlisten: " << address << '\n';
   }
   else {
-    sstr << "\tconnect: " << address_ << '\n';
+    sstr << "\tconnect: " << address << '\n';
   }
 #undef __W
   return sstr.str();

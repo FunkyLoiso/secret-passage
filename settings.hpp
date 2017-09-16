@@ -23,14 +23,15 @@ public:
   std::string log_path; // syslog if empty
   boost::log::trivial::severity_level log_level; // trace, debug, info, warning, error, fatal
   std::string pid_path;
+  bool daemonize;
 
   // [tunnel options]
   struct mode {
     enum code_t { listen, connect };
     static std::string name(code_t);
   };
-  mode::code_t mode_;   // operating mode
-  std::string address_; // listen/conect address
+  mode::code_t mode;   // operating mode
+  std::string address; // listen/conect address
 };
 
 }

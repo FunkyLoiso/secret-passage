@@ -12,7 +12,7 @@
 namespace sp
 {
 
-void setup_logging(const std::string& log_path, boost::log::trivial::severity_level log_level);
+void setup_logging(const settings& st);
 
 typedef boost::format bf;
 

@@ -13,7 +13,7 @@ secret_passage_service::secret_passage_service(settings st)
 
 int secret_passage_service::run() {
   try {
-    setup_logging(st_.log_path, st_.log_level);
+    setup_logging(st_);
     LOG_INFO << "##### secret passage new log entry #####";
   }
   catch(const std::exception& ex) {
@@ -21,15 +21,14 @@ int secret_passage_service::run() {
     std::cout.flush();
     return -1;
   }
-  std::cout << "starting Secret Passage daemon in '" << settings::mode::name(st_.mode_) << "' mode" << std::endl;
+  std::cout << "starting Secret Passage daemon in '" << settings::mode::name(st_.mode) << "' mode" << std::endl;
   LOG_INFO << bf("starting in '%s' mode with options:\n%s")
-    % settings::mode::name(st_.mode_) % st_.to_string();
+    % settings::mode::name(st_.mode) % st_.to_string();
 
-  if(-1 == daemon(0, 0)) {
+  if(st_.daemonize && -1 == daemon(0, 0)) {
     LOG_FATAL << "service failed to daemonize";
     return -2;
   }
-  LOG_DEBUG << "successfully daemonized, pid is " << getpid();
 
   if(!st_.pid_path.empty() && !pid_.open(st_.pid_path.c_str())) {
     return -3;
