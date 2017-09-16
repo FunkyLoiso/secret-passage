@@ -2,9 +2,11 @@
 #define SECRET_PASSAGE_SERVICE_HPP
 
 #include <boost/asio/io_service.hpp>
+#include <boost/shared_ptr.hpp>
 #include "settings.hpp"
 #include "pid_file.hpp"
 #include "scoped_descriptor.hpp"
+#include "listen_mode.hpp"
 
 namespace sp
 {
@@ -21,6 +23,8 @@ private:
   settings st_;
 
   shared_descriptor tap_;
+
+  boost::shared_ptr<listen_mode> listen_mode_;
 };
 
 }

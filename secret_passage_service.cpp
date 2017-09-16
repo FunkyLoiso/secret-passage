@@ -19,7 +19,7 @@ int secret_passage_service::run() {
   catch(const std::exception& ex) {
     std::cout << "Exception while setting up logging: " << ex.what() << std::endl;
     std::cout.flush();
-    return -1;
+    return -10;
   }
   std::cout << "starting Secret Passage daemon in '" << settings::mode::name(st_.mode) << "' mode" << std::endl;
   LOG_INFO << bf("starting in '%s' mode with options:\n%s")
@@ -27,24 +27,36 @@ int secret_passage_service::run() {
 
   if(st_.daemonize && -1 == daemon(0, 0)) {
     LOG_FATAL << "service failed to daemonize";
-    return -2;
+    return -20;
   }
 
   if(!st_.pid_path.empty() && !pid_.open(st_.pid_path.c_str())) {
-    return -3;
+    return -30;
   }
 
   std::string tap_name;
   tap_ = create_tap(&tap_name);
   if(!tap_->valid()) {
-    return -4;
+    return -40;
   }
   LOG_INFO << bf("tap interface created: '%s'") % tap_name;
+
+  if(settings::mode::listen == st_.mode) {
+    listen_mode_ = boost::make_shared<listen_mode>(ios_, st_, tap_);
+    listen_mode_->setup();
+  }
+  else {
+  }
+  try {
+    ios_.run();
+  }
+  catch(const std::exception& ex) {
+    LOG_FATAL << bf("Exception: %s") % ex.what();
+    return -70;
+  }
 
   LOG_INFO << "Secret Passage serice stopped";
   return 0;
 }
-
-
 
 }
