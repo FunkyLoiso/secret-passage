@@ -18,6 +18,8 @@ public:
   int run();
 
 private:
+  void handle_stop(const boost::system::error_code& ec);
+
   pid_file pid_;
   boost::asio::io_service ios_;
   settings st_;

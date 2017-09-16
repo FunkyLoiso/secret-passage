@@ -1,8 +1,13 @@
 #include <iostream>
 #include <stdexcept>
+#include <boost/bind.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/placeholders.hpp>
 #include "secret_passage_service.hpp"
 #include "logging.hpp"
 #include "create_tap.hpp"
+
+namespace asio = boost::asio;
 
 namespace sp
 {
@@ -48,6 +53,12 @@ int secret_passage_service::run() {
   else {
   }
   try {
+    asio::signal_set stop_signals(ios_, SIGTERM, SIGINT);
+    stop_signals.async_wait(boost::bind(
+      &secret_passage_service::handle_stop,
+        this,
+        asio::placeholders::error
+    ));
     ios_.run();
   }
   catch(const std::exception& ex) {
@@ -57,6 +68,13 @@ int secret_passage_service::run() {
 
   LOG_INFO << "Secret Passage serice stopped";
   return 0;
+}
+
+void secret_passage_service::handle_stop(const boost::system::error_code& ec) {
+  if(ec) {
+    LOG_ERROR << "secret_passage_service::handle_stop: " << ec.message();
+  }
+  ios_.stop();
 }
 
 }

@@ -39,6 +39,7 @@ listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& 
 {}
 
 void listen_mode::private_t::setup() {
+  static const char func[] = "listen_mode::setup";
   // split host and port
   std::string host, port;
   auto colon = st_.address.find(':');
@@ -50,7 +51,7 @@ void listen_mode::private_t::setup() {
     host = st_.address.substr(0, colon);
     port = st_.address.substr(colon+1);
   }
-  LOG_DEBUG << __FUNCTION__ << bf(": resolving host '%s', port '%s'") % host % port;
+  LOG_DEBUG << bf("%s: resolving host '%s', port '%s'") % func % host % port;
   typedef asio::ip::tcp::resolver resolver_t;
   resolver_t::query q(host, port);
   asio::io_service dummy_ios;
@@ -63,7 +64,7 @@ void listen_mode::private_t::setup() {
     ));
   }
   auto ep = i->endpoint();
-  LOG_DEBUG << __FUNCTION__ << bf(": resolved to '%s:%d'") % ep.address().to_string() % ep.port();
+  LOG_DEBUG << bf("%s: resolved to '%s:%d'") % func % ep.address().to_string() % ep.port();
   acceptor_.open(ep.protocol());
 //  acceptor.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
   acceptor_.bind(ep, ec);
@@ -90,12 +91,13 @@ void listen_mode::private_t::setup() {
 }
 
 void listen_mode::private_t::handle_accept(const boost::system::error_code& ec) {
+  static const char func[] = "listen_mode::handle_accept";
   if(ec == asio::error::operation_aborted) {
     return;
   }
 
   if(ec) {
-    LOG_ERROR << __FUNCTION__ << bf(": accept opration failed, retrying: %s") % ec.message();
+    LOG_ERROR << bf("%s: accept opration failed, retrying: %s") % func % ec.message();
     acceptor_.async_accept(
       socket_,
       remote_ep_,
@@ -108,8 +110,8 @@ void listen_mode::private_t::handle_accept(const boost::system::error_code& ec) 
     return;
   }
 
-  LOG_DEBUG << __FUNCTION__ << bf(": accepted connection from '%s:%d'")
-    % remote_ep_.address().to_string() % remote_ep_.port();
+  LOG_DEBUG << bf("%s: accepted connection from '%s:%d'")
+    % func % remote_ep_.address().to_string() % remote_ep_.port();
 }
 
 /*\
