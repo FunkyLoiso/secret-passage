@@ -25,6 +25,7 @@ find_package(
     log_setup
     log
 )
+find_package(OpenSSL)
 
 file(GLOB SRC
     "*.hpp"
@@ -38,10 +39,12 @@ add_definitions(
 add_executable(
   ${PROJECT_NAME}
     ${Boost_INCLUDE_DIR}
+    ${OPENSSL_INCLUDE_DIR}
     ${SRC}
 )
 
 target_link_libraries(
   ${PROJECT_NAME}
     ${Boost_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
 )

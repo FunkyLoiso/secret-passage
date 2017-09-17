@@ -4,6 +4,8 @@
 #include <boost/asio/placeholders.hpp>
 #include "listen_mode.hpp"
 #include "logging.hpp"
+#include "normal_socket.hpp"
+#include "secure_socket.hpp"
 
 namespace asio = boost::asio;
 
@@ -19,24 +21,24 @@ public:
   void setup();
 
 private:
+  void async_accept();
   void handle_accept(const boost::system::error_code& ec);
 
   boost::asio::io_service& ios_;
   const settings& st_;
   shared_descriptor tap_;
 
-  typedef asio::ip::tcp::acceptor acceptor;
-  acceptor acceptor_;
-  acceptor::endpoint_type remote_ep_;
-  typedef asio::ip::tcp::socket socket;
-  socket socket_;
+  socket::acceptor acceptor_;
+  socket::acceptor::endpoint_type remote_ep_;
+  boost::shared_ptr<socket> socket_;
 };
 
 listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap)
   : ios_(ios), st_(st), tap_(tap)
   , acceptor_(ios_)
-  , socket_(ios_)
-{}
+{
+  socket_ = boost::make_shared<normal_socket>(ios_); // @TODO: read tls option from settings
+}
 
 void listen_mode::private_t::setup() {
   static const char func[] = "listen_mode::setup";
@@ -79,8 +81,12 @@ void listen_mode::private_t::setup() {
       % q.host_name() % q.service_name() % ec.message()
     ));
   }
-  acceptor_.async_accept(
-    socket_,
+  async_accept();
+}
+
+void listen_mode::private_t::async_accept() {
+  socket_->async_accept(
+    acceptor_,
     remote_ep_,
     boost::bind(
       &private_t::handle_accept,
@@ -98,15 +104,18 @@ void listen_mode::private_t::handle_accept(const boost::system::error_code& ec) 
 
   if(ec) {
     LOG_ERROR << bf("%s: accept opration failed, retrying: %s") % func % ec.message();
-    acceptor_.async_accept(
-      socket_,
-      remote_ep_,
-      boost::bind(
-        &private_t::handle_accept,
-          this,
-          asio::placeholders::error
-      )
-    );
+    boost::system::error_code close_ec;
+    socket_->shutdown(close_ec);
+    if(close_ec) {
+      LOG_WARNING << bf("%s: error while shutting socket down after accept failure: %s")
+        % func % close_ec.message();
+    }
+    socket_->close(close_ec);
+    if(close_ec) {
+      LOG_WARNING << bf("%s: error while closing socket after accept failure: %s")
+        % func % close_ec.message();
+    }
+    async_accept();
     return;
   }
 
