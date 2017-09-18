@@ -30,7 +30,18 @@ public:
 
   std::size_t code() const;
   const std::string& status() const;
-  const std::string& url() const;
+
+  struct url_t {
+    std::string full;
+    std::string host;
+    uint16_t port;
+    std::string path;
+    std::string query;
+    std::string fragment;
+    std::string userinfo;
+  };
+
+  const url_t& url() const;
   const std::map<std::string, std::string> headers() const;
 
 private:

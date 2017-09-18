@@ -39,8 +39,9 @@ struct http_parser::private_t {
   http_parser_handler* h;
   ::http_parser parser;
   http_parser_settings st;
+  http_parser* parent;
 
-  std::string url;
+  url_t url;
 };
 
 template<http_parser::private_t::cb_type::code_t type>
@@ -68,7 +69,7 @@ int http_parser::private_t::http_data_cb(::http_parser* parser, const char* data
 
 
 int http_parser::private_t::on_url(const char* data, std::size_t size) {
-  url += std::string(data, size);
+  url.full += std::string(data, size);
 
   //@TODO: remove debug code
   ::http_parser_url url_parts = {};
@@ -78,11 +79,30 @@ int http_parser::private_t::on_url(const char* data, std::size_t size) {
     return err;
   }
 
-  LOG_DEBUG << "url parts:";
   for(int i = 0; i < ::UF_MAX; ++i) {
     if(url_parts.field_set & (1 << i)) {
       auto part_beg = data + url_parts.field_data[i].off;
-      LOG_DEBUG << bf("\t%d: '%s'") % i % std::string(part_beg, url_parts.field_data[i].len);
+      auto part_len = url_parts.field_data[i].len;
+      switch (i) {
+      case ::UF_HOST:
+        url.host.assign(part_beg, part_len);
+        break;
+      case ::UF_PORT:
+        url.port = url_parts.port;
+        break;
+      case ::UF_PATH:
+        url.path.assign(part_beg, part_len);
+        break;
+      case ::UF_QUERY:
+        url.query.assign(part_beg, part_len);
+        break;
+      case ::UF_FRAGMENT:
+        url.fragment.assign(part_beg, part_len);
+        break;
+      case ::UF_USERINFO:
+        url.userinfo.assign(part_beg, part_len);
+        break;
+      }
     }
   }
   return 0;
@@ -103,9 +123,9 @@ int http_parser::private_t::on_header_value(const char* data, std::size_t size)
 
 }
 
-int http_parser::private_t::on_headers_complete()
-{
-
+int http_parser::private_t::on_headers_complete() {
+  h->handle_headers_complete(parent);
+  return 0;
 }
 
 int http_parser::private_t::on_body(const char* data, std::size_t size)
@@ -126,6 +146,7 @@ http_parser::http_parser(http_parser_handler* h)
   : p(new private_t())
 {
   p->h = h;
+  p->parent = this;
   ::http_parser_init(&p->parser, HTTP_REQUEST);
   p->parser.data = p.get();
   ::http_parser_settings_init(&p->st);
@@ -136,7 +157,7 @@ http_parser::http_parser(http_parser_handler* h)
 //  __DATA_CB(on_status);
 //  __DATA_CB(on_header_field);
 //  __DATA_CB(on_header_value);
-//  __CB(on_headers_complete);
+  __CB(on_headers_complete);
 //  __DATA_CB(on_body);
 //  __CB(on_message_complete);
 
@@ -168,7 +189,7 @@ const std::string& sp::http_parser::status() const {
 
 }
 
-const std::string& sp::http_parser::url() const {
+const http_parser::url_t& http_parser::url() const {
   return p->url;
 }
 

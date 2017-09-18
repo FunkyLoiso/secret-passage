@@ -223,7 +223,7 @@ void listen_mode::private_t::handle_read(const boost::system::error_code& ec, st
 }
 
 void listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
-
+  LOG_DEBUG << bf("Headers complete! Url is '%s'") % parser->url().full;
 }
 
 void listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
