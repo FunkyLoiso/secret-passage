@@ -13,7 +13,7 @@ namespace sp
 class listen_mode
 {
 public:
-  typedef exception<listen_mode> exception;
+  typedef sp::exception<listen_mode> exception;
 
   listen_mode(boost::asio::io_service& ios, const settings& st, shared_descriptor tap);
   void setup();   // throws exception

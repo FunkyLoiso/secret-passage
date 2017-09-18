@@ -8,6 +8,7 @@
 #include "logging.hpp"
 #include "normal_socket.hpp"
 #include "secure_socket.hpp"
+#include "http_parser.hpp"
 
 namespace asio = boost::asio;
 
@@ -29,7 +30,7 @@ namespace sp
 /*\
  *  class listen_mode::private_t
 \*/
-class listen_mode::private_t {
+class listen_mode::private_t: public http_parser_handler {
 public:
   private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap);
   ~private_t();
@@ -42,6 +43,11 @@ private:
   void async_read();
   void handle_read(const boost::system::error_code& ec, std::size_t tr);
 
+  // http_parser_handler interface
+  virtual void handle_headers_complete(const http_parser* parser);
+  virtual void handle_body(const http_parser* parser, const char* data, std::size_t size);
+
+
   boost::asio::io_service& ios_;
   const settings& st_;
   shared_descriptor tap_;
@@ -49,6 +55,8 @@ private:
   socket::acceptor acceptor_;
   socket::acceptor::endpoint_type remote_ep_;
   boost::shared_ptr<socket> socket_;
+
+  http_parser parser_;
 
   struct state {
     enum code_t {
@@ -66,6 +74,7 @@ listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& 
   : ios_(ios), st_(st), tap_(tap)
   , acceptor_(ios_)
   , state_(state::no_connection)
+  , parser_(this)
 {
   socket_ = boost::make_shared<normal_socket>(ios_); // @TODO: read tls option from settings
 }
@@ -204,8 +213,21 @@ void listen_mode::private_t::handle_read(const boost::system::error_code& ec, st
     LOG_DEBUG << bf("%s: received request data (%d bytes):\n%s")
       % func % tr % buffer_to_string(buf_);
   }
-  // @TODO: parse http
+
+  auto buf_size = asio::buffer_size(buf_.data());
+  auto consumed = parser_.notify(asio::buffer_cast<const char*>(buf_.data()), buf_size);
+  LOG_DEBUG << bf("%s: parser consumed %d/%d data") % func % consumed % buf_size;
+  buf_.consume(consumed);
+
   async_read();
+}
+
+void listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
+
+}
+
+void listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
+
 }
 
 /*\
