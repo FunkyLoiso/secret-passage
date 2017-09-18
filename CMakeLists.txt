@@ -30,6 +30,7 @@ find_package(OpenSSL)
 file(GLOB SRC
     "*.hpp"
     "*.cpp"
+    "http-parser/http_parser.h" "http-parser/http_parser.c"
 )
 
 add_definitions(
