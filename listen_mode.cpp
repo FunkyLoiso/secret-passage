@@ -146,6 +146,9 @@ void listen_mode::private_t::close_and_listen() {
       % func % close_ec.message();
   }
   acceptor_.cancel();
+  parser_.reset();
+  // 'clear' buffer input
+  buf_.consume(buf_.size());
   async_accept();
   return;
 }
@@ -209,25 +212,31 @@ void listen_mode::private_t::handle_read(const boost::system::error_code& ec, st
 
   // actually some data!
   buf_.commit(tr);
-  if(state::accepting_header == state_) {
-    LOG_DEBUG << bf("%s: received request data (%d bytes):\n%s")
-      % func % tr % buffer_to_string(buf_);
+  auto data = asio::buffer_cast<const char*>(buf_.data());
+  auto size = buf_.size();
+  LOG_TRACE << bf("%s: received request data (%d bytes):\n%s")
+    % func % tr % std::string(data, size);
+  auto consumed = parser_.notify(data, size);
+  LOG_DEBUG << bf("%s: parser consumed %d/%d data") % func % consumed % size;
+  if(parser_.failed()) {
+    LOG_ERROR << bf("%s: request parsing error, resetting connection: %s") % func % parser_.error();
+    close_and_listen();
+    return;
   }
-
-  auto buf_size = asio::buffer_size(buf_.data());
-  auto consumed = parser_.notify(asio::buffer_cast<const char*>(buf_.data()), buf_size);
-  LOG_DEBUG << bf("%s: parser consumed %d/%d data") % func % consumed % buf_size;
   buf_.consume(consumed);
 
   async_read();
 }
 
 void listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
-  LOG_DEBUG << bf("Headers complete! Url is '%s'") % parser->url().full;
+  LOG_DEBUG << bf("Headers complete. Url is '%s', headers are:") % parser->url().full;
+  for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
+    LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
+  }
 }
 
 void listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
-
+  LOG_DEBUG << bf("body part (%d bytes):\n%s") % size % std::string(data, size);
 }
 
 /*\

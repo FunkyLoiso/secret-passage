@@ -22,9 +22,10 @@ class http_parser
 public:
   http_parser(http_parser_handler* h);
   std::size_t notify(const char* data, std::size_t size); // returns number of bytes consumed
-  bool done();  // true if message finished
+  bool headers_complete() const;
+  bool body_complete() const;
   bool failed(); // true if in error state
-  const char* error();  // get error string, nullptr is no error
+  std::string error();  // get error string, empty if no error
 
   void reset();
 
@@ -42,7 +43,7 @@ public:
   };
 
   const url_t& url() const;
-  const std::map<std::string, std::string> headers() const;
+  const std::map<std::string, std::string>& headers() const;
 
 private:
   struct private_t;
