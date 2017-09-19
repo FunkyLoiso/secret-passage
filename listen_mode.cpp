@@ -45,7 +45,7 @@ private:
 
   // http_parser_handler interface
   virtual void handle_headers_complete(const http_parser* parser);
-  virtual void handle_body(const http_parser* parser, const char* data, std::size_t size);
+  virtual bool handle_body(const http_parser* parser, const char* data, std::size_t size);
 
 
   boost::asio::io_service& ios_;
@@ -235,8 +235,18 @@ void listen_mode::private_t::handle_headers_complete(const http_parser* parser) 
   }
 }
 
-void listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
-  LOG_DEBUG << bf("body part (%d bytes):\n%s") % size % std::string(data, size);
+bool listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
+  LOG_TRACE << bf("body part (%d bytes):\n%s") % size % std::string(data, size);
+  for(std::size_t total = 0; total < size;) {
+    auto written = write(tap_->get(), data + total, size - total);
+    if(-1 == written) {
+      LOG_ERROR << bf("Writing to tap interface failed, resetting connection: %s") % strerror(errno);
+      close_and_listen(); //@TODO: may be should not reset the parser before returning..
+      return false;
+    }
+    total += written;
+  }
+  return true;
 }
 
 /*\

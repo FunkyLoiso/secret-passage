@@ -145,15 +145,13 @@ int http_parser::private_t::on_header_value(const char* data, std::size_t size) 
 
 int http_parser::private_t::on_headers_complete() {
   // @TODO: let the handler decide on return value?
-  h->handle_headers_complete(parent);
   info.headers_complete = true;
+  h->handle_headers_complete(parent);
   return 0;
 }
 
 int http_parser::private_t::on_body(const char* data, std::size_t size) {
-  // @TODO: let the handler decide on return value?
-  h->handle_body(parent, data, size);
-  return 0;
+  return h->handle_body(parent, data, size) ? 0 : -1;
 }
 
 int http_parser::private_t::on_message_complete() {

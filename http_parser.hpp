@@ -14,7 +14,8 @@ class http_parser;
 class http_parser_handler {
 public:
   virtual void handle_headers_complete(const http_parser* parser) = 0;
-  virtual void handle_body(const http_parser* parser, const char* data, std::size_t size) = 0;
+  // true to continue
+  virtual bool handle_body(const http_parser* parser, const char* data, std::size_t size) = 0;
 };
 
 class http_parser
