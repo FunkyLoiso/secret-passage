@@ -51,6 +51,8 @@ int secret_passage_service::run() {
     listen_mode_->setup();
   }
   else {
+    connect_mode_ = boost::make_shared<connect_mode>(ios_, st_, tap_);
+    connect_mode_->setup();
   }
   try {
     asio::signal_set stop_signals(ios_, SIGTERM, SIGINT);

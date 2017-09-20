@@ -24,6 +24,7 @@ namespace def {
   static const auto log_level = str::severity::warning;
   static const std::string listen("127.0.0.1:443");
   static const bool daemonize(false);
+  static const int32_t reconnect_interval_ms(5000);
 }
 
 void describe(po::options_description& desc, settings* st = nullptr) {
@@ -45,6 +46,7 @@ void describe(po::options_description& desc, settings* st = nullptr) {
     ("log-path,L", po::value<std::string>(st ? &st->log_path : nullptr), "full path to log file. 'syslog' to use syslog, empty for stdout (for non-deamon only)")
     ("log-level", po::value<std::string>()->notifier(severity_handler)->default_value(def::log_level), "log level: trace, debug, info, warning, error or fatal")
     ("daemonize,d", po::bool_switch(st ? &st->daemonize : nullptr)->default_value(def::daemonize), "start as service")
+    ("reconnect-interval-ms", po::value<int32_t>()->default_value(def::reconnect_interval_ms), "client reconnect interval, ms")
     // [tunnel options]
     ("listen,l", po::value<std::string>(st ? &st->address : nullptr)->default_value(def::listen), "listen address\nstarts in listen mode")
     ("connect,c", po::value<std::string>(st ? &st->address : nullptr), "connect address\nstarts in connect mode")
@@ -86,11 +88,15 @@ void settings::read(int argc, char *argv[]) {
     throw help_requested();
   }
 
+  // mode
   bool has_connect = 0 != map.count("connect");
   if(!map["listen"].defaulted() && has_connect) {
     throw exception("options 'listen' and 'connect' are mutually exclusive");
   }
   mode = has_connect ? mode::connect : mode::listen;
+
+  // reconnect interval
+  reconnect_interval = std::chrono::milliseconds(map["reconnect-interval-ms"].as<int32_t>());
 
   validate();
 }

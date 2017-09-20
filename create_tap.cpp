@@ -25,7 +25,7 @@ shared_descriptor create_tap(std::__cxx11::string* inout_dev /*= nullptr*/) {
   ret->reset(fd);
 
   ifreq ifr = {};
-  ifr.ifr_flags = IFF_TAP;   /* IFF_TUN or IFF_TAP, plus maybe IFF_NO_PI */
+  ifr.ifr_flags = IFF_TAP | IFF_NO_PI;   /* IFF_TUN or IFF_TAP, plus maybe IFF_NO_PI */
   if (inout_dev && !inout_dev->empty()) {
    /* if a device name was specified, put it in the structure; otherwise,
     * the kernel will try to allocate the "next" device of the

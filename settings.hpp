@@ -2,6 +2,7 @@
 #define SETTINGS_HPP
 
 #include <boost/log/trivial.hpp>
+#include <chrono>
 #include "exception.hpp"
 
 namespace sp {
@@ -24,6 +25,7 @@ public:
   boost::log::trivial::severity_level log_level; // trace, debug, info, warning, error, fatal
   std::string pid_path;
   bool daemonize;
+  std::chrono::milliseconds reconnect_interval;
 
   // [tunnel options]
   struct mode {

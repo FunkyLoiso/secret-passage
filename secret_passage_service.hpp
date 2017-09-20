@@ -7,6 +7,7 @@
 #include "pid_file.hpp"
 #include "scoped_descriptor.hpp"
 #include "listen_mode.hpp"
+#include "connect_mode.hpp"
 
 namespace sp
 {
@@ -27,6 +28,8 @@ private:
   shared_descriptor tap_;
 
   boost::shared_ptr<listen_mode> listen_mode_;
+  boost::shared_ptr<connect_mode> connect_mode_;
+
 };
 
 }

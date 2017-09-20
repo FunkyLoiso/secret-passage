@@ -12,18 +12,6 @@
 
 namespace asio = boost::asio;
 
-namespace
-{
-
-std::string buffer_to_string(const boost::asio::streambuf &buffer)
-{
-  auto bufs = buffer.data();
-  std::string result(asio::buffers_begin(bufs), asio::buffers_end(bufs));
-  return result;
-}
-
-}
-
 namespace sp
 {
 
@@ -229,19 +217,22 @@ void listen_mode::private_t::handle_read(const boost::system::error_code& ec, st
 }
 
 void listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
-  LOG_DEBUG << bf("Headers complete. Url is '%s', headers are:") % parser->url().full;
+  static const char func[] = "listen_mode::handle_headers_complete";
+  LOG_DEBUG << bf("%s: Headers complete. Url is '%s', headers are:") % func % parser->url().full;
   for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
     LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
   }
 }
 
 bool listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
-  LOG_TRACE << bf("body part (%d bytes):\n%s") % size % std::string(data, size);
+  static const char func[] = "listen_mode::handle_body";
+  LOG_TRACE << bf("%s: body part (%d bytes):\n%s")
+    % func % size % std::string(data, size);
   for(std::size_t total = 0; total < size;) {
     auto written = write(tap_->get(), data + total, size - total);
     if(-1 == written) {
       LOG_ERROR << bf("Writing to tap interface failed, resetting connection: %s") % strerror(errno);
-      close_and_listen(); //@TODO: may be should not reset the parser before returning..
+      close_and_listen(); //@TODO: maybe we should not reset the parser before returning..
       return false;
     }
     total += written;
