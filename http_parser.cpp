@@ -144,10 +144,8 @@ int http_parser::private_t::on_header_value(const char* data, std::size_t size) 
 }
 
 int http_parser::private_t::on_headers_complete() {
-  // @TODO: let the handler decide on return value?
   info.headers_complete = true;
-  h->handle_headers_complete(parent);
-  return 0;
+  return h->handle_headers_complete(parent) ? 0 : -1;
 }
 
 int http_parser::private_t::on_body(const char* data, std::size_t size) {

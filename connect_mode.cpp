@@ -53,7 +53,7 @@ private:
   void async_write_http_chunk();
   void handle_write_http_chunk(const boost::system::error_code& ec, std::size_t tr);
   // http_parser_handler interface
-  virtual void handle_headers_complete(const http_parser* parser);
+  virtual bool handle_headers_complete(const http_parser* parser);
   virtual bool handle_body(const http_parser* parser, const char* data, std::size_t size);
 
   asio::io_service& ios_;
@@ -122,8 +122,9 @@ void connect_mode::private_t::close_and_reconnect() {
   }
   resolver_.cancel();
   parser_.reset();
-  // 'clear' buffer input
+  // 'clear' buffers
   tap_buf_.consume(tap_buf_.size());
+  http_buf_.consume(http_buf_.size());
   async_reconnect();
   return;
 }
@@ -231,7 +232,7 @@ void connect_mode::private_t::handle_read_tap(const boost::system::error_code& e
     throw exception(bf("%s: reading from tap failed: %s") % func % ec.message());
   }
   // we have some packets
-  tap_buf_.commit(tr); // @TODO: comit whole number of packets
+  tap_buf_.commit(tr); // @TODO: commit whole number of packets
   async_write_http_chunk();
 }
 
@@ -338,13 +339,16 @@ void connect_mode::private_t::handle_write_http_chunk(const boost::system::error
   async_read_tap();
 }
 
-void connect_mode::private_t::handle_headers_complete(const http_parser* parser) {
+bool connect_mode::private_t::handle_headers_complete(const http_parser* parser) {
   static const char func[] = "connect_mode::handle_headers_complete";
   LOG_DEBUG << bf("%s: Headers complete. Url: '%s', status: '%d %s' , headers are:")
     % func % parser->url().full % parser->code() % parser->status();
   for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
     LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
   }
+
+  //@TODO: check status
+  return true;
 }
 
 bool connect_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
