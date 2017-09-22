@@ -11,6 +11,9 @@ namespace asio = boost::asio;
 namespace sp
 {
 
+/*\
+ *  class http_to_tap_loop::private_t
+\*/
 class http_to_tap_loop::private_t: public http_parser_handler {
 public:
   private_t(boost::shared_ptr<socket>, asio::posix::stream_descriptor& tap, headers_complete_handler hch, loop_stop_handler lsh);
@@ -36,7 +39,7 @@ private:
 
   asio::streambuf http_buf_;  // http -> http_buf_ -> parser_ -> tap
   std::vector<asio::const_buffer> send_buffers_;
-  // for now we just transfer
+  // for now we just transfer received body data as is
 //  asio::streambuf tap_buf_;
 };
 
@@ -150,6 +153,18 @@ bool http_to_tap_loop::private_t::handle_body(const http_parser* parser, const c
     % func % size % std::string(data, size);
 
   send_buffers_.push_back(asio::const_buffer(data, size));
+  return true;
+}
+
+/*\
+ *  class http_to_tap_loop
+\*/
+http_to_tap_loop::http_to_tap_loop(boost::shared_ptr<socket> socket, asio::posix::stream_descriptor& tap, headers_complete_handler hch, loop_stop_handler lsh)
+  : p(new private_t(socket, tap, hch, lsh))
+{}
+
+void http_to_tap_loop::start() {
+  p->start();
 }
 
 }

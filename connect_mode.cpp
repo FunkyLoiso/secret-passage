@@ -10,6 +10,7 @@
 #include "normal_socket.hpp"
 #include "secure_socket.hpp"
 #include "http_parser.hpp"
+#include "http_to_tap_loop.hpp"
 #include "logging.hpp"
 
 namespace asio = boost::asio;
@@ -25,7 +26,7 @@ namespace
 /*\
  *  class connect_mode::private_t
 \*/
-class connect_mode::private_t: public http_parser_handler {
+class connect_mode::private_t {
 public:
   private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap);
   ~private_t();
@@ -43,18 +44,14 @@ private:
 
   void async_read_tap();
   void handle_read_tap(const boost::system::error_code& ec, std::size_t tr);
-  void async_write_tap();
-  void handle_write_tap(const boost::system::error_code& ec, std::size_t tr);
 
-  void async_read_http();
-  void handle_read_http(const boost::system::error_code& ec, std::size_t tr);
   void async_write_http_headers();
   void handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr);
   void async_write_http_chunk();
   void handle_write_http_chunk(const boost::system::error_code& ec, std::size_t tr);
-  // http_parser_handler interface
-  virtual bool handle_headers_complete(const http_parser* parser);
-  virtual bool handle_body(const http_parser* parser, const char* data, std::size_t size);
+
+  bool handle_headers_complete(const http_parser* parser);
+  void handle_htt_loop_stop(loop_stop_reason::code_t code);
 
   asio::io_service& ios_;
   const settings& st_;
@@ -65,21 +62,32 @@ private:
 
   std::string host_, port_;
   boost::shared_ptr<socket> socket_;
-  http_parser parser_;
+  boost::shared_ptr<http_to_tap_loop> htt_loop_;
 
-//  std::string chuk_size_buf_;
   asio::streambuf chunk_size_buf_;
   asio::streambuf tap_buf_; // tap -> tap_buf_ -> (prepend with chunk size) -> http
-  asio::streambuf http_buf_;  // http -> http_buf_ -> parser_ -> tap
 };
 
 connect_mode::private_t::private_t(asio::io_service& ios, const settings& st, shared_descriptor tap)
   : ios_(ios), st_(st), tap_(ios_, tap->get())
   , resolver_(ios_)
   , reconnect_timer_(ios_)
-  , parser_(this)
 {
   socket_ = boost::make_shared<normal_socket>(ios_); //@TODO: read tls option from settings
+  htt_loop_ = boost::make_shared<http_to_tap_loop>(
+    socket_,
+    tap_,
+    boost::bind(
+      &private_t::handle_headers_complete,
+        this,
+        boost::placeholders::_1
+    ),
+    boost::bind(
+      &private_t::handle_htt_loop_stop,
+        this,
+        boost::placeholders::_1
+    )
+  );
 }
 
 connect_mode::private_t::~private_t() {
@@ -121,10 +129,9 @@ void connect_mode::private_t::close_and_reconnect() {
       % func % close_ec.message();
   }
   resolver_.cancel();
-  parser_.reset();
+  tap_.cancel();
   // 'clear' buffers
   tap_buf_.consume(tap_buf_.size());
-  http_buf_.consume(http_buf_.size());
   async_reconnect();
   return;
 }
@@ -236,22 +243,6 @@ void connect_mode::private_t::handle_read_tap(const boost::system::error_code& e
   async_write_http_chunk();
 }
 
-void connect_mode::private_t::async_write_tap() {
-
-}
-
-void connect_mode::private_t::handle_write_tap(const boost::system::error_code& ec, std::size_t tr) {
-
-}
-
-void connect_mode::private_t::async_read_http() {
-
-}
-
-void connect_mode::private_t::handle_read_http(const boost::system::error_code& ec, std::size_t tr) {
-
-}
-
 void connect_mode::private_t::async_write_http_headers() {
   LOG_TRACE << __PRETTY_FUNCTION__;
   std::ostream str(&tap_buf_);
@@ -288,9 +279,7 @@ void connect_mode::private_t::handle_write_http_headers(const boost::system::err
   }
 
   tap_buf_.consume(tr);
-  // now we can read tap and also read http
-  async_read_tap();
-  async_read_http();
+  htt_loop_->start();
 }
 
 void connect_mode::private_t::async_write_http_chunk() {
@@ -348,14 +337,13 @@ bool connect_mode::private_t::handle_headers_complete(const http_parser* parser)
   }
 
   //@TODO: check status
+  async_read_tap();
   return true;
 }
 
-bool connect_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
-  static const char func[] = "connect_mode::handle_body";
-  LOG_TRACE << bf("%s: body part (%d bytes):\n%s")
-    % func % size % std::string(data, size);
-  return true;
+void connect_mode::private_t::handle_htt_loop_stop(loop_stop_reason::code_t code) {
+
+  set_reconnect_timer();
 }
 
 /*\

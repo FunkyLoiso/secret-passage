@@ -10,6 +10,8 @@
 #include "normal_socket.hpp"
 #include "secure_socket.hpp"
 #include "http_parser.hpp"
+#include "loop_stop.hpp"
+#include "http_to_tap_loop.hpp"
 
 namespace asio = boost::asio;
 
@@ -19,7 +21,7 @@ namespace sp
 /*\
  *  class listen_mode::private_t
 \*/
-class listen_mode::private_t: public http_parser_handler {
+class listen_mode::private_t {
 public:
   private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap);
   ~private_t();
@@ -30,21 +32,14 @@ private:
   void async_accept();
   void handle_accept(const boost::system::error_code& ec);
 
-  void async_read_http();
-  void handle_read_http(const boost::system::error_code& ec, std::size_t tr);
   void async_write_http_headers();
   void handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr);
-  void async_write_http_chunk();
-  void handle_write_http_chunk(const boost::system::error_code& ec, std::size_t tr);
 
   void async_read_tap();
   void handle_read_tap(const boost::system::error_code& ec, std::size_t tr);
-  void async_write_tap();
-  void handle_write_tap(const boost::system::error_code& ec, std::size_t tr);
 
-  // http_parser_handler interface
-  virtual bool handle_headers_complete(const http_parser* parser);
-  virtual bool handle_body(const http_parser* parser, const char* data, std::size_t size);
+  bool handle_headers_complete(const http_parser* parser);
+  void handle_htt_loop_stop(loop_stop_reason::code_t code);
 
 
   boost::asio::io_service& ios_;
@@ -54,8 +49,7 @@ private:
   socket::acceptor acceptor_;
   socket::acceptor::endpoint_type remote_ep_;
   boost::shared_ptr<socket> socket_;
-
-  http_parser parser_;
+  boost::shared_ptr<http_to_tap_loop> htt_loop_;
 
   asio::streambuf chunk_size_buf_;
   asio::streambuf http_buf_;    // http -> http_buf_ -> parser_ -> tap
@@ -65,9 +59,22 @@ private:
 listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap)
   : ios_(ios), st_(st), tap_(ios_, tap->get())
   , acceptor_(ios_)
-  , parser_(this)
 {
   socket_ = boost::make_shared<normal_socket>(ios_); // @TODO: read tls option from settings
+  htt_loop_ = boost::make_shared<http_to_tap_loop>(
+    socket_,
+    tap_,
+    boost::bind(
+      &private_t::handle_headers_complete,
+        this,
+        boost::placeholders::_1
+    ),
+    boost::bind(
+      &private_t::handle_htt_loop_stop,
+        this,
+        boost::placeholders::_1
+    )
+  );
 }
 
 listen_mode::private_t::~private_t() {
@@ -137,7 +144,7 @@ void listen_mode::private_t::close_and_listen() {
       % func % close_ec.message();
   }
   acceptor_.cancel();
-  parser_.reset();
+  tap_.cancel();
   // 'clear' buffer input
   http_buf_.consume(http_buf_.size());
   async_accept();
@@ -170,52 +177,16 @@ void listen_mode::private_t::handle_accept(const boost::system::error_code& ec) 
 
   LOG_INFO << bf("%s: accepted connection from '%s:%d', awaiting request..")
     % func % remote_ep_.address().to_string() % remote_ep_.port();
-  async_read_http();
+
+  htt_loop_->start();
 }
 
-void listen_mode::private_t::async_read_http() {
-  socket_->async_read_some(
-    http_buf_.prepare(512),
-    boost::bind(
-      &private_t::handle_read_http,
-        this,
-        asio::placeholders::error,
-        asio::placeholders::bytes_transferred
-    )
-  );
+void listen_mode::private_t::async_write_http_headers() {
+
 }
 
-void listen_mode::private_t::handle_read_http(const boost::system::error_code& ec, std::size_t tr) {
-  static const char func[] = "listen_mode::handle_read";
-  if(asio::error::operation_aborted == ec) {
-    LOG_TRACE << func << ": operation aborted";
-    return;
-  }
+void listen_mode::private_t::handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr) {
 
-  // @TODO: handle close errors differently?
-  if(ec) {
-    LOG_WARNING << bf("%s: read operation error, closing socket and accepting again: %s")
-      % func % ec.message();
-    close_and_listen();
-    return;
-  }
-
-  // actually some data!
-  http_buf_.commit(tr);
-  auto data = asio::buffer_cast<const char*>(http_buf_.data());
-  auto size = http_buf_.size();
-  LOG_TRACE << bf("%s: received request data (%d bytes):\n%s")
-    % func % tr % std::string(data, size);
-  auto consumed = parser_.notify(data, size);
-  LOG_DEBUG << bf("%s: parser consumed %d/%d data") % func % consumed % size;
-  if(parser_.failed()) {
-    LOG_ERROR << bf("%s: request parsing error, resetting connection: %s") % func % parser_.error();
-    close_and_listen();
-    return;
-  }
-  http_buf_.consume(consumed);
-
-  async_read_http();
 }
 
 bool listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
@@ -224,23 +195,12 @@ bool listen_mode::private_t::handle_headers_complete(const http_parser* parser) 
   for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
     LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
   }
+  async_write_http_headers();
   return true;
 }
 
-bool listen_mode::private_t::handle_body(const http_parser* parser, const char* data, std::size_t size) {
-  static const char func[] = "listen_mode::handle_body";
-  LOG_TRACE << bf("%s: body part (%d bytes):\n%s")
-    % func % size % std::string(data, size);
-//  for(std::size_t total = 0; total < size;) {
-//    auto written = write(tap_->get(), data + total, size - total);
-//    if(-1 == written) {
-//      LOG_ERROR << bf("Writing to tap interface failed, resetting connection: %s") % strerror(errno);
-//      close_and_listen(); //@TODO: maybe we should not reset the parser before returning..
-//      return false;
-//    }
-//    total += written;
-//  }
-  return true;
+void listen_mode::private_t::handle_htt_loop_stop(loop_stop_reason::code_t code) {
+  close_and_listen();
 }
 
 /*\

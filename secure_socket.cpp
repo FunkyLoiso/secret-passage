@@ -59,6 +59,11 @@ void secure_socket::async_write_some(const boost::asio::const_buffers_1& buffers
   ssl_strm_.async_write_some(buffers, handler);
 }
 
+void secure_socket::cancel() {
+  LOG_TRACE << __PRETTY_FUNCTION__;
+  ssl_strm_.lowest_layer().cancel();
+}
+
 void secure_socket::shutdown(boost::system::error_code& ec) {
   LOG_TRACE << __PRETTY_FUNCTION__;
   ssl_strm_.shutdown(ec);

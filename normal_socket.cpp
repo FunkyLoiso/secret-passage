@@ -33,6 +33,11 @@ void normal_socket::async_write_some(const std::vector<boost::asio::const_buffer
   socket_.async_write_some(buffers, handler);
 }
 
+void normal_socket::cancel() {
+  LOG_TRACE << __PRETTY_FUNCTION__;
+  socket_.cancel();
+}
+
 void normal_socket::shutdown(boost::system::error_code& ec) {
   LOG_TRACE << __PRETTY_FUNCTION__;
   socket_.shutdown(boost::asio::socket_base::shutdown_both, ec);
