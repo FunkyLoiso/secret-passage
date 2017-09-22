@@ -23,7 +23,7 @@ public:
   virtual void async_write_some(const boost::asio::const_buffers_1& buffers, write_handler handler) = 0;
   virtual void async_write_some(const std::vector<boost::asio::const_buffer>& buffers, write_handler handler) = 0;
 
-  virtual void cancel() = 0;
+  virtual void cancel(boost::system::error_code& ec) = 0;
   virtual void shutdown(boost::system::error_code& ec) = 0;
   virtual void close(boost::system::error_code& ec) = 0;
 };

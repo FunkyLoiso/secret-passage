@@ -4,7 +4,6 @@
 #include <boost/asio/buffers_iterator.hpp>
 #include "http_to_tap_loop.hpp"
 #include "logging.hpp"
-#include "http_parser.hpp"
 
 namespace asio = boost::asio;
 
@@ -139,11 +138,6 @@ void http_to_tap_loop::private_t::handle_write_tap(const boost::system::error_co
 }
 
 bool http_to_tap_loop::private_t::handle_headers_complete(const http_parser* parser) {
-  static const char func[] = "http_to_tap_loop::handle_headers_complete";
-  LOG_DEBUG << bf("%s: Headers complete. Url is '%s', headers are:") % func % parser->url().full;
-  for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
-    LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
-  }
   return headers_complete_(parser);
 }
 

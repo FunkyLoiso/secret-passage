@@ -16,7 +16,7 @@ public:
   virtual void async_read_some(const boost::asio::mutable_buffers_1& buffers, read_handler handler);
   virtual void async_write_some(const boost::asio::const_buffers_1& buffers, write_handler handler);
   virtual void async_write_some(const std::vector<boost::asio::const_buffer>& buffers, write_handler handler);
-  virtual void cancel();
+  virtual void cancel(boost::system::error_code& ec);
   virtual void shutdown(boost::system::error_code& ec);
   virtual void close(boost::system::error_code& ec);
 

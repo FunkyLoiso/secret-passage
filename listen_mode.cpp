@@ -12,11 +12,16 @@
 #include "http_parser.hpp"
 #include "loop_stop.hpp"
 #include "http_to_tap_loop.hpp"
+#include "tap_to_http_loop.hpp"
 
 namespace asio = boost::asio;
 
 namespace sp
 {
+
+namespace {
+static const char CRLF[] = "\r\n";
+}
 
 /*\
  *  class listen_mode::private_t
@@ -32,14 +37,12 @@ private:
   void async_accept();
   void handle_accept(const boost::system::error_code& ec);
 
+  bool handle_headers_complete(const http_parser* parser);
+
   void async_write_http_headers();
   void handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr);
 
-  void async_read_tap();
-  void handle_read_tap(const boost::system::error_code& ec, std::size_t tr);
-
-  bool handle_headers_complete(const http_parser* parser);
-  void handle_htt_loop_stop(loop_stop_reason::code_t code);
+  void handle_loop_stop(loop_stop_reason::code_t code);
 
 
   boost::asio::io_service& ios_;
@@ -50,10 +53,9 @@ private:
   socket::acceptor::endpoint_type remote_ep_;
   boost::shared_ptr<socket> socket_;
   boost::shared_ptr<http_to_tap_loop> htt_loop_;
+  boost::shared_ptr<tap_to_http_loop> tth_loop_;
 
-  asio::streambuf chunk_size_buf_;
-  asio::streambuf http_buf_;    // http -> http_buf_ -> parser_ -> tap
-  asio::streambuf tap_buf_; // tap -> tap_buf_ -> (prepend with chunk size) -> http
+  asio::streambuf http_headers_buf_;
 };
 
 listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& st, shared_descriptor tap)
@@ -70,7 +72,17 @@ listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& 
         boost::placeholders::_1
     ),
     boost::bind(
-      &private_t::handle_htt_loop_stop,
+      &private_t::handle_loop_stop,
+        this,
+        boost::placeholders::_1
+    )
+  );
+
+  tth_loop_ = boost::make_shared<tap_to_http_loop>(
+    socket_,
+    tap_,
+    boost::bind(
+      &private_t::handle_loop_stop,
         this,
         boost::placeholders::_1
     )
@@ -133,6 +145,8 @@ void listen_mode::private_t::setup() {
 void listen_mode::private_t::close_and_listen() {
   static const char func[] = "listen_mode::close_and_listen";
   boost::system::error_code close_ec;
+  socket_->cancel(close_ec);
+  tap_.cancel(close_ec);
   socket_->shutdown(close_ec);
   if(close_ec) {
     LOG_WARNING << bf("%s: error while shutting socket down after accept failure: %s")
@@ -144,9 +158,8 @@ void listen_mode::private_t::close_and_listen() {
       % func % close_ec.message();
   }
   acceptor_.cancel();
-  tap_.cancel();
   // 'clear' buffer input
-  http_buf_.consume(http_buf_.size());
+  http_headers_buf_.consume(http_headers_buf_.size());
   async_accept();
   return;
 }
@@ -181,14 +194,6 @@ void listen_mode::private_t::handle_accept(const boost::system::error_code& ec) 
   htt_loop_->start();
 }
 
-void listen_mode::private_t::async_write_http_headers() {
-
-}
-
-void listen_mode::private_t::handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr) {
-
-}
-
 bool listen_mode::private_t::handle_headers_complete(const http_parser* parser) {
   static const char func[] = "listen_mode::handle_headers_complete";
   LOG_DEBUG << bf("%s: Headers complete. Url is '%s', headers are:") % func % parser->url().full;
@@ -199,7 +204,44 @@ bool listen_mode::private_t::handle_headers_complete(const http_parser* parser) 
   return true;
 }
 
-void listen_mode::private_t::handle_htt_loop_stop(loop_stop_reason::code_t code) {
+void listen_mode::private_t::async_write_http_headers() {
+  LOG_TRACE << __PRETTY_FUNCTION__;
+  std::ostream str(&http_headers_buf_);
+  str << "HTTP/1.1 200 OK" << CRLF;
+  str << "Transfer-Encoding: chunked" << CRLF;
+  str << "Content-Type: application/octet-stream" << CRLF;
+  str << CRLF;
+
+  socket_->async_write_some(
+    http_headers_buf_.data(),
+    boost::bind(
+      &private_t::handle_write_http_headers,
+        this,
+        asio::placeholders::error,
+        asio::placeholders::bytes_transferred
+    )
+  );
+}
+
+void listen_mode::private_t::handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr) {
+  LOG_TRACE << __PRETTY_FUNCTION__;
+  static const char func[] = "listen_mode::handle_write_http_headers";
+  if(asio::error::operation_aborted == ec) {
+    return;
+  }
+  if(ec) {
+    LOG_WARNING << bf("%s: failed to write headers, setting reconnect timer: %s")
+      % func % ec.message();
+    close_and_listen();
+    return;
+  }
+
+  http_headers_buf_.consume(tr);
+  tth_loop_->start();
+
+}
+
+void listen_mode::private_t::handle_loop_stop(loop_stop_reason::code_t code) {
   close_and_listen();
 }
 

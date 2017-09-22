@@ -15,17 +15,22 @@ use_cxx11()
 
 project(secret-passage)
 
+set(Boost_USE_STATIC_LIBS ON)
 find_package(
   Boost
   COMPONENTS
+    log
+    log_setup
     system
+    filesystem
     program_options
     thread
-    filesystem
-    log_setup
-    log
 )
+
+set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL)
+
+message("OPENSSL libs: ${OPENSSL_LIBRARIES}")
 
 file(GLOB SRC
     "*.hpp"
@@ -47,5 +52,8 @@ add_executable(
 target_link_libraries(
   ${PROJECT_NAME}
     ${Boost_LIBRARIES}
-    ${OPENSSL_LIBRARIES}
+#    ${OPENSSL_LIBRARIES}
+    ${CMAKE_DL_LIBS}
+    libssl.a  # for some reason OPENSSL_USE_STATIC_LIBS does not work
+    libcrypto.a
 )

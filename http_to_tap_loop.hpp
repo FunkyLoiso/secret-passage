@@ -3,6 +3,7 @@
 
 #include <boost/asio/posix/stream_descriptor.hpp>
 #include <boost/function.hpp>
+#include <boost/shared_ptr.hpp>
 #include "socket.hpp"
 #include "loop_stop.hpp"
 #include "http_parser.hpp"

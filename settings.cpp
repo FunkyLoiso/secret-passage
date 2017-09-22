@@ -93,6 +93,9 @@ void settings::read(int argc, char *argv[]) {
   if(!map["listen"].defaulted() && has_connect) {
     throw exception("options 'listen' and 'connect' are mutually exclusive");
   }
+  if(has_connect) {
+    address = map["connect"].as<std::string>();
+  }
   mode = has_connect ? mode::connect : mode::listen;
 
   // reconnect interval

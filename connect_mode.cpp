@@ -11,6 +11,7 @@
 #include "secure_socket.hpp"
 #include "http_parser.hpp"
 #include "http_to_tap_loop.hpp"
+#include "tap_to_http_loop.hpp"
 #include "logging.hpp"
 
 namespace asio = boost::asio;
@@ -42,13 +43,8 @@ private:
   void async_connect(resolver_t::iterator i);
   void handle_connect(const boost::system::error_code& ec, resolver_t::iterator i);
 
-  void async_read_tap();
-  void handle_read_tap(const boost::system::error_code& ec, std::size_t tr);
-
   void async_write_http_headers();
   void handle_write_http_headers(const boost::system::error_code& ec, std::size_t tr);
-  void async_write_http_chunk();
-  void handle_write_http_chunk(const boost::system::error_code& ec, std::size_t tr);
 
   bool handle_headers_complete(const http_parser* parser);
   void handle_htt_loop_stop(loop_stop_reason::code_t code);
@@ -63,9 +59,9 @@ private:
   std::string host_, port_;
   boost::shared_ptr<socket> socket_;
   boost::shared_ptr<http_to_tap_loop> htt_loop_;
+  boost::shared_ptr<tap_to_http_loop> tth_loop_;
 
-  asio::streambuf chunk_size_buf_;
-  asio::streambuf tap_buf_; // tap -> tap_buf_ -> (prepend with chunk size) -> http
+  asio::streambuf http_heades_buf_;
 };
 
 connect_mode::private_t::private_t(asio::io_service& ios, const settings& st, shared_descriptor tap)
@@ -82,6 +78,15 @@ connect_mode::private_t::private_t(asio::io_service& ios, const settings& st, sh
         this,
         boost::placeholders::_1
     ),
+    boost::bind(
+      &private_t::handle_htt_loop_stop,
+        this,
+        boost::placeholders::_1
+    )
+  );
+  tth_loop_ = boost::make_shared<tap_to_http_loop>(
+    socket_,
+    tap_,
     boost::bind(
       &private_t::handle_htt_loop_stop,
         this,
@@ -118,6 +123,9 @@ void connect_mode::private_t::setup() {
 void connect_mode::private_t::close_and_reconnect() {
   static const char func[] = "connect_mode::close_and_reconnect";
   boost::system::error_code close_ec;
+  socket_->cancel(close_ec);
+  tap_.cancel(close_ec);
+
   socket_->shutdown(close_ec);
   if(close_ec) {
     LOG_WARNING << bf("%s: error while shutting socket down after accept failure: %s")
@@ -129,9 +137,8 @@ void connect_mode::private_t::close_and_reconnect() {
       % func % close_ec.message();
   }
   resolver_.cancel();
-  tap_.cancel();
   // 'clear' buffers
-  tap_buf_.consume(tap_buf_.size());
+  http_heades_buf_.consume(http_heades_buf_.size());
   async_reconnect();
   return;
 }
@@ -208,44 +215,9 @@ void connect_mode::private_t::handle_connect(const boost::system::error_code& ec
   async_write_http_headers();
 }
 
-void connect_mode::private_t::async_read_tap() {
-  tap_.async_read_some(
-    tap_buf_.prepare(512),
-    boost::bind(
-      &private_t::handle_read_tap,
-        this,
-        asio::placeholders::error,
-        asio::placeholders::bytes_transferred
-    )
-  );
-
-//  std::ostream str(&tap_buf_);
-//  static int count = 0;
-//  if(++count < 5) {
-//    str << count;
-//    boost::system::error_code dummy;
-//    handle_read_tap(dummy, 1);
-//  }
-}
-
-void connect_mode::private_t::handle_read_tap(const boost::system::error_code& ec, std::size_t tr) {
-  static const char func[] = "connect_mode::handle_read_tap";
-  LOG_TRACE << bf("%s: %d bytes read") % func % tr;
-  if(asio::error::operation_aborted == ec) {
-    return;
-  }
-
-  if(ec) {
-    throw exception(bf("%s: reading from tap failed: %s") % func % ec.message());
-  }
-  // we have some packets
-  tap_buf_.commit(tr); // @TODO: commit whole number of packets
-  async_write_http_chunk();
-}
-
 void connect_mode::private_t::async_write_http_headers() {
   LOG_TRACE << __PRETTY_FUNCTION__;
-  std::ostream str(&tap_buf_);
+  std::ostream str(&http_heades_buf_);
   str << "POST /tunnel HTTP/1.1" << CRLF;
   str << "Host: " << host_ << ":" << port_ << CRLF;
   str << "User-Agent: secret-passage" << CRLF; //@TODO: add version
@@ -255,7 +227,7 @@ void connect_mode::private_t::async_write_http_headers() {
   str << CRLF;
 
   socket_->async_write_some(
-    tap_buf_.data(),
+    http_heades_buf_.data(),
     boost::bind(
       &private_t::handle_write_http_headers,
         this,
@@ -278,71 +250,27 @@ void connect_mode::private_t::handle_write_http_headers(const boost::system::err
     return;
   }
 
-  tap_buf_.consume(tr);
+  http_heades_buf_.consume(tr);
   htt_loop_->start();
-}
-
-void connect_mode::private_t::async_write_http_chunk() {
-  static const char func[] = "connect_mode::async_write_http_chunk";
-  // prepare chunk size buffer
-  std::ostream sstr(&chunk_size_buf_);
-  sstr << std::hex << tap_buf_.size() << CRLF;
-  auto last_buf = asio::const_buffer(CRLF, 2);
-
-  std::vector<asio::const_buffer> buffers;
-  buffers.push_back(chunk_size_buf_.data());
-  buffers.push_back(tap_buf_.data());
-  buffers.push_back(last_buf);
-
-  LOG_TRACE << bf("%s: writing http chunk (%d bytes):\n%s%s%s")
-    % func
-    % asio::buffer_size(buffers)
-    % std::string(asio::buffer_cast<const char*>(chunk_size_buf_.data()), chunk_size_buf_.size())
-    % std::string(asio::buffer_cast<const char*>(tap_buf_.data()), tap_buf_.size())
-    % CRLF;
-  socket_->async_write_some(
-    buffers,
-    boost::bind(
-      &private_t::handle_write_http_chunk,
-        this,
-        asio::placeholders::error,
-        asio::placeholders::bytes_transferred
-    )
-  );
-}
-
-void connect_mode::private_t::handle_write_http_chunk(const boost::system::error_code& ec, std::size_t tr) {
-  static const char func[] = "connect_mode::handle_write_http_chunk";
-  if(asio::error::operation_aborted == ec) {
-    return;
-  }
-
-  if(ec) {
-    LOG_ERROR << bf("%s: failed to write http chunk, setting reconnect timer: %s")
-      % func % ec.message();
-    set_reconnect_timer();
-    return;
-  }
-  chunk_size_buf_.consume(chunk_size_buf_.size());
-  tap_buf_.consume(tap_buf_.size());
-  async_read_tap();
 }
 
 bool connect_mode::private_t::handle_headers_complete(const http_parser* parser) {
   static const char func[] = "connect_mode::handle_headers_complete";
-  LOG_DEBUG << bf("%s: Headers complete. Url: '%s', status: '%d %s' , headers are:")
-    % func % parser->url().full % parser->code() % parser->status();
+  LOG_DEBUG << bf("%s: Headers complete. Status: '%d %s' , headers are:")
+    % func % parser->code() % parser->status();
   for(auto i = parser->headers().begin(); i != parser->headers().end(); ++i) {
     LOG_DEBUG << bf("\t%s: %s") % i->first % i->second;
   }
 
   //@TODO: check status
-  async_read_tap();
+  tth_loop_->start();
   return true;
 }
 
 void connect_mode::private_t::handle_htt_loop_stop(loop_stop_reason::code_t code) {
-
+  boost::system::error_code dummy_ec;
+  socket_->cancel(dummy_ec);
+  tap_.cancel(dummy_ec);
   set_reconnect_timer();
 }
 

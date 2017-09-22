@@ -13,7 +13,7 @@ namespace sp
 
 class tap_to_http_loop {
 public:
-  tap_to_http_loop(socket& socket, boost::asio::posix::stream_descriptor& tap, loop_stop_handler lsh);
+  tap_to_http_loop(boost::shared_ptr<socket> socket, boost::asio::posix::stream_descriptor& tap, loop_stop_handler lsh);
   void start();
 
 private:
