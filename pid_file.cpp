@@ -9,7 +9,7 @@
 namespace sp
 {
 
-bool pid_file::open(std::__cxx11::string pid_path)
+bool pid_file::open(std::string pid_path)
 {
   fd_ = ::open(pid_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR);
   if (fd_ == -1) {
