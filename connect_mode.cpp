@@ -76,12 +76,12 @@ connect_mode::private_t::private_t(asio::io_service& ios, const settings& st, sh
     boost::bind(
       &private_t::handle_headers_complete,
         this,
-        boost::placeholders::_1
+        _1
     ),
     boost::bind(
       &private_t::handle_htt_loop_stop,
         this,
-        boost::placeholders::_1
+        _1
     )
   );
   tth_loop_ = boost::make_shared<tap_to_http_loop>(
@@ -90,7 +90,7 @@ connect_mode::private_t::private_t(asio::io_service& ios, const settings& st, sh
     boost::bind(
       &private_t::handle_htt_loop_stop,
         this,
-        boost::placeholders::_1
+        _1
     )
   );
 }

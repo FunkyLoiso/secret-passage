@@ -69,12 +69,12 @@ listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& 
     boost::bind(
       &private_t::handle_headers_complete,
         this,
-        boost::placeholders::_1
+        _1
     ),
     boost::bind(
       &private_t::handle_loop_stop,
         this,
-        boost::placeholders::_1
+        _1
     )
   );
 
@@ -84,7 +84,7 @@ listen_mode::private_t::private_t(boost::asio::io_service& ios, const settings& 
     boost::bind(
       &private_t::handle_loop_stop,
         this,
-        boost::placeholders::_1
+        _1
     )
   );
 }
