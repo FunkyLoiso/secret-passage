@@ -13,7 +13,7 @@ namespace str {
 static const char clone_dev[] = "/dev/net/tun";
 }
 
-shared_descriptor create_tap(std::__cxx11::string* inout_dev /*= nullptr*/) {
+shared_descriptor create_tap(std::string* inout_dev /*= nullptr*/) {
   auto ret = boost::make_shared<scoped_descriptor>();
   int fd = -1;
    /* open the tap device to clone */
