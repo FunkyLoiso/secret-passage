@@ -1,4 +1,4 @@
 language: c++
 os: linux
 install: sudo apt install libssl-dev libboost-all-dev
-script: cmake .. && cmake --build .
+script: cmake ./secret-passage/ && cmake --build ./secret-passage/
