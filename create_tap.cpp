@@ -3,6 +3,7 @@
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <sys/ioctl.h>
+#include <string.h>
 #include "create_tap.hpp"
 #include "logging.hpp"
 
