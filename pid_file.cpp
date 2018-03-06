@@ -2,6 +2,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <boost/format.hpp>
+#include <string.h>
 
 #include "logging.hpp"
 #include "pid_file.hpp"
