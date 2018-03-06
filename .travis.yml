@@ -1,6 +1,4 @@
 language: c++
 os: linux
-install:
-- sudo apt install libssl-dev
-- wget -c 'https://dl.bintray.com/boostorg/release/1.66.0/source/boost_1_66_0.tar.bz2' && tar --bzip2 -xf boost_1_66_0.tar.bz2 && cd boost_1_66_0/ && ./bootstrap.sh && sudo ./b2 install
+install: sudo apt install libssl-dev libboost-all-dev
 script: cmake . && cmake --build .
