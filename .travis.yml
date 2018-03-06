@@ -1,0 +1,6 @@
+language: c++
+os: linux
+install:
+- libssl-dev
+- boost-dev
+script: cmake .. && cmake --build .
